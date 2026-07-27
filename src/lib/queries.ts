@@ -86,6 +86,7 @@ export async function getToday(iso = sydneyISODate()) {
   const bwAvg = await sevenDayBodyweight(iso);
 
   let lastSummary = null as null | {
+    id: string;
     date: string;
     name: string;
     volume: number;
@@ -100,6 +101,7 @@ export async function getToday(iso = sydneyISODate()) {
       dropIndex: l.dropIndex,
     }));
     lastSummary = {
+      id: lastCompleted.id,
       date: isoOf(lastCompleted.date),
       name: lastCompleted.template?.name ?? "Session",
       volume: Math.round(tonnage(rows)),

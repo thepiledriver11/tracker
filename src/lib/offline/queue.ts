@@ -71,3 +71,12 @@ export async function pendingCount(): Promise<number> {
   const ks = (await keys()) as string[];
   return ks.filter((k) => typeof k === "string" && k.startsWith(PREFIX)).length;
 }
+
+/** Drop every queued op that targets a given session (used when discarding it). */
+export async function clearForSession(sessionId: string): Promise<void> {
+  for (const op of await allPending()) {
+    const opSessionId =
+      op.kind === "set" ? op.payload.sessionId : op.payload.sessionId;
+    if (opSessionId === sessionId) await remove(op.id);
+  }
+}

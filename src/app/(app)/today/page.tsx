@@ -5,6 +5,7 @@ import { dateOnly, shortDate } from "@/lib/time";
 import { Fig, fmt } from "@/components/ui";
 import { StartSessionButton } from "@/components/StartSessionButton";
 import { WalkStrip } from "@/components/WalkStrip";
+import { LastSessionCard } from "@/components/LastSessionCard";
 
 export const dynamic = "force-dynamic";
 
@@ -144,17 +145,7 @@ export default async function TodayPage() {
       {t.lastSummary && (
         <>
           <div className="eyebrow mb-2.5">Last session</div>
-          <div className="flex items-center gap-3 rounded-sm glass p-3.5">
-            <div>
-              <div className="text-[11px] font-bold">
-                {shortDate(t.lastSummary.date)} · {t.lastSummary.name}
-              </div>
-              <div className="text-[10px] font-medium text-[var(--muted)]">
-                {fmt(t.lastSummary.volume)} kg total volume
-              </div>
-            </div>
-            <Fig className="ml-auto text-lg" value={t.lastSummary.e1rm} unit="e1rm" />
-          </div>
+          <LastSessionCard summary={t.lastSummary} />
         </>
       )}
     </div>

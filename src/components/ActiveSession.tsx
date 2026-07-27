@@ -9,7 +9,7 @@ import type {
 import { Fig } from "./ui";
 import { Stepper } from "./Stepper";
 import { RestTimer } from "./RestTimer";
-import { enqueue, newId, pendingCount } from "@/lib/offline/queue";
+import { enqueue, newId, pendingCount, clearForSession } from "@/lib/offline/queue";
 import { flushQueue } from "@/lib/offline/sync";
 
 type Side = "both" | "left" | "right";
@@ -47,15 +47,41 @@ export function ActiveSession({ session }: { session: SessionForLogging }) {
   const [pending, setPending] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [extra, setExtra] = useState<LoaderBlock[]>([]);
+  const [gym, setGym] = useState(session.gymMode);
 
   const allBlocks = useMemo(() => [...session.blocks, ...extra], [session.blocks, extra]);
 
   // Gym mode: darken this screen only.
   useEffect(() => {
-    if (session.gymMode) document.body.setAttribute("data-gym", "on");
+    if (gym) document.body.setAttribute("data-gym", "on");
+    else document.body.removeAttribute("data-gym");
     return () => document.body.removeAttribute("data-gym");
-  }, [session.gymMode]);
+  }, [gym]);
+
+  function toggleGym() {
+    const next = !gym;
+    setGym(next);
+    // Persist so it sticks next time (also drives the Settings toggle).
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gymMode: next }),
+    }).catch(() => {});
+  }
+
+  async function cancelSession() {
+    // Discard the in-progress session and any of its queued writes.
+    try {
+      await clearForSession(session.id);
+      await fetch(`/api/sessions/${session.id}`, { method: "DELETE" });
+    } catch {
+      /* if offline, the session simply stays; nothing is lost */
+    }
+    router.push("/today");
+    router.refresh();
+  }
 
   // Elapsed clock.
   const [elapsed, setElapsed] = useState("0:00");
@@ -188,7 +214,25 @@ export function ActiveSession({ session }: { session: SessionForLogging }) {
             Block {block ? blockIndex + 1 : "–"} of {allBlocks.length}
           </div>
         </div>
-        <Fig className="text-lg" value={elapsed} />
+        <div className="flex items-center gap-3">
+          <button
+            aria-label={gym ? "Switch to light" : "Switch to gym mode"}
+            onClick={toggleGym}
+            style={{ color: "var(--muted)" }}
+          >
+            {gym ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <circle cx="12" cy="12" r="4.5" />
+                <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4m0-14.2l-1.4 1.4M6.3 17.7l-1.4 1.4" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
+              </svg>
+            )}
+          </button>
+          <Fig className="text-lg" value={elapsed} />
+        </div>
       </div>
 
       {pending > 0 && (
@@ -239,6 +283,13 @@ export function ActiveSession({ session }: { session: SessionForLogging }) {
 
       <AddExercise onAdd={(b) => setExtra((x) => [...x, b])} />
 
+      <button
+        className="mb-2 w-full text-center text-[11px] font-semibold text-[var(--muted)]"
+        onClick={() => setCancelling(true)}
+      >
+        Cancel &amp; discard session
+      </button>
+
       {rest !== null && (
         <RestTimer
           seconds={rest}
@@ -262,6 +313,26 @@ export function ActiveSession({ session }: { session: SessionForLogging }) {
           onCancel={() => setFinishing(false)}
           onFinish={finish}
         />
+      )}
+
+      {cancelling && (
+        <Sheet onClose={() => setCancelling(false)}>
+          <div className="title mb-2 text-base">Discard this session?</div>
+          <p className="mb-4 text-xs font-medium text-[var(--ink-2)]">
+            Every set logged in this session will be permanently deleted. This
+            can&apos;t be undone.
+          </p>
+          <button
+            className="pill mb-2 w-full"
+            style={{ padding: 13, background: "linear-gradient(140deg,#FF8A8A,#E85D5D)", color: "#fff" }}
+            onClick={cancelSession}
+          >
+            Discard session
+          </button>
+          <button className="pill w-full" style={{ padding: 13 }} onClick={() => setCancelling(false)}>
+            Keep logging
+          </button>
+        </Sheet>
       )}
 
       {toast && (
