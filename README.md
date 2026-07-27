@@ -72,10 +72,13 @@ The PWA icons are committed under `public/icons`. Regenerate them with
 2. Set all env vars above on the `web` service.
 3. Deploy. `railway.json` builds with `npm run build`; the start command runs
    `prisma migrate deploy` then `next start`, so migrations apply on every boot.
-4. **Seed once**, after the first deploy:
+4. **Seed once**, after the first deploy. Either run it from the CLI:
    ```bash
    railway run npm run seed
    ```
+   …or, with no terminal, set `SEED_ON_START=1` on the web service for a single
+   deploy (the container seeds on boot), then **remove the variable** — the seed
+   rebuilds the program each run and would wipe manual program edits if left on.
 5. **Cron** — add three Railway cron schedules (they run hourly by design; each
    endpoint checks Sydney local time, so the 4 Oct 2026 DST change needs no edit):
 
