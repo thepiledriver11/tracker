@@ -182,6 +182,49 @@ model FoodShortcut {
   useCount Int    @default(0)
 }
 
+// ---------- Finance: the 2028 home-purchase tracker ----------
+
+model FinanceConfig {
+  id                       String  @id @default("singleton")
+  // Savings plan
+  savingsStartMonth        String  @default("2026-08") // yyyy-mm
+  savingsEndMonth          String  @default("2028-08")
+  monthlyTarget            Int     @default(8000)
+  totalTarget              Int     @default(192000)
+  startingSavings          Int     @default(0) // baseline balance at plan start
+  // Current mortgage being paid down (builds equity)
+  mortgageStart            Int     @default(725000)
+  mortgageMonthlyReduction Int     @default(1126)
+  mortgageStartMonth       String  @default("2026-08")
+  homeValue                Int? // current property value → equity = value − mortgage
+  // Target purchase
+  purchasePrice            Int     @default(3000000)
+  targetLvr                Float   @default(0.35)
+  loanRate                 Float   @default(0.05)
+  loanTermYears            Int     @default(30)
+  targetDate               String  @default("2028-04")
+  targetCombinedIncome     Int     @default(405000)
+  updatedAt                DateTime @updatedAt
+}
+
+model SavingsSnapshot {
+  id        String   @id @default(cuid())
+  month     String   @unique // yyyy-mm
+  balance   Int
+  createdAt DateTime @default(now())
+}
+
+model SalaryMilestone {
+  id             String    @id @default(cuid())
+  order          Int
+  label          String
+  dueLabel       String // "Dec 2026", "Mid 2028"
+  detail         String
+  combinedIncome Int // household combined income once this is reached
+  achieved       Boolean   @default(false)
+  achievedAt     DateTime?
+}
+
 model Settings {
   id             String  @id @default("singleton")
   telegramChatId String?

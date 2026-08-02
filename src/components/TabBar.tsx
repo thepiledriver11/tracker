@@ -25,6 +25,16 @@ const TABS: Tab[] = [
   { href: "/progress", label: "Progress", icon: I("M4 12h3l3-7 4 14 3-7h3") },
   { href: "/body", label: "Body", icon: I("M12 21c4-3 6-6 6-9a6 6 0 10-12 0c0 3 2 6 6 9z") },
   {
+    href: "/finance",
+    label: "Finance",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 1v22" />
+        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+      </svg>
+    ),
+  },
+  {
     href: "/settings",
     label: "Settings",
     icon: (

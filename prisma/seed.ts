@@ -260,6 +260,23 @@ async function main() {
     create: { id: "singleton" },
   });
 
+  console.log("Finance config + salary milestones…");
+  await prisma.financeConfig.upsert({
+    where: { id: "singleton" },
+    update: {},
+    create: { id: "singleton" },
+  });
+  if ((await prisma.salaryMilestone.count()) === 0) {
+    await prisma.salaryMilestone.createMany({
+      data: [
+        { order: 0, label: "James → Head of Product", dueLabel: "Dec 2026", detail: "Base $210,000", combinedIncome: 210000 },
+        { order: 1, label: "James bonus confirmed", dueLabel: "Mar 2027", detail: "Total package $250,000", combinedIncome: 250000 },
+        { order: 2, label: "Taylor returns from maternity", dueLabel: "Jan 2028", detail: "Taylor at $120,000", combinedIncome: 370000 },
+        { order: 3, label: "Both salaries increased", dueLabel: "Mid 2028", detail: "James $270,000 + Taylor $135,000", combinedIncome: 405000 },
+      ],
+    });
+  }
+
   console.log("Done.");
 }
 
