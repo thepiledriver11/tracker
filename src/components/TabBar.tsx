@@ -7,6 +7,7 @@ import { HomeIcon, SectionIcon } from "@/components/icons";
 
 export default function TabBar() {
   const pathname = usePathname();
+  if (pathname === "/login") return null;
 
   const tab = (href: string, label: string, icon: React.ReactNode) => {
     const active = pathname === href;
