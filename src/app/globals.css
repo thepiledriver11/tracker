@@ -9,4 +9,35 @@ html {
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Screen transition: previous screen is replaced, new screen slides up in. */
+@keyframes screen-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(40vh);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.screen-enter {
+  animation: screen-slide-up 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Bottom sheet entrance */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.sheet-enter {
+  animation: sheet-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }

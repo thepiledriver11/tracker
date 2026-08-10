@@ -1,48 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { SECTIONS, useGoals } from "@/lib/store";
+import {
+  SECTIONS,
+  useTracker,
+  goalPct,
+  actionPct,
+  fmt,
+} from "@/lib/store";
+import { Donut, Bar } from "@/components/charts";
 import { GridIcon, SectionIcon } from "@/components/icons";
 
-export default function HomePage() {
-  const { goals, ready } = useGoals();
-
-  const total = goals.length;
-  const done = goals.filter((g) => g.done).length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+export default function DashboardPage() {
+  const { state, ready } = useTracker();
 
   return (
     <main>
       <header className="flex items-center justify-between px-5 pb-2 pt-6">
-        <h1 className="text-xl font-semibold">Goals</h1>
+        <h1 className="text-xl font-semibold">Dashboard</h1>
         <GridIcon className="h-6 w-6 text-black" />
       </header>
 
-      <section className="px-5 pt-3">
-        <div className="rounded-2xl border border-line p-5">
-          <div className="flex items-baseline justify-between">
-            <p className="text-sm text-faint">Overall progress</p>
-            <p className="text-sm font-medium">
-              {ready ? `${done} of ${total} done` : ""}
-            </p>
-          </div>
-          <div className="mt-3 h-1.5 w-full rounded-full bg-line">
-            <div
-              className="h-1.5 rounded-full bg-black transition-all"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-3 px-5 pt-5">
+      <section className="space-y-3 px-5 pt-3">
         {SECTIONS.map((s) => {
-          const sectionGoals = goals.filter((g) => g.section === s.id);
-          const sectionDone = sectionGoals.filter((g) => g.done).length;
-          const sectionPct =
-            sectionGoals.length > 0
-              ? Math.round((sectionDone / sectionGoals.length) * 100)
-              : 0;
+          const data = state[s.id];
+          const goal = data.goal;
           return (
             <Link
               key={s.id}
@@ -50,25 +32,64 @@ export default function HomePage() {
               className="block rounded-2xl border border-line p-4 active:bg-neutral-50"
             >
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-line">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-line">
                   <SectionIcon section={s.id} className="h-5 w-5" />
                 </span>
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium">{s.label}</p>
-                  <p className="text-xs text-faint">
-                    {sectionGoals.length === 0
-                      ? "No goals yet"
-                      : `${sectionDone} of ${sectionGoals.length} done`}
-                  </p>
+                  {goal ? (
+                    <p className="truncate text-xs text-faint">{goal.title}</p>
+                  ) : (
+                    <p className="text-xs text-faint">No goal set</p>
+                  )}
                 </div>
-                <span className="text-sm text-faint">{sectionPct}%</span>
+                {goal && <Donut pct={goalPct(goal)} size={56} stroke={6} />}
               </div>
-              <div className="mt-3 h-1 w-full rounded-full bg-line">
-                <div
-                  className="h-1 rounded-full bg-black transition-all"
-                  style={{ width: `${sectionPct}%` }}
-                />
-              </div>
+
+              {goal && (
+                <div className="mt-3 flex items-baseline justify-between text-xs">
+                  <span className="text-faint">
+                    Start {fmt(goal.start)}
+                    {goal.unit ? ` ${goal.unit}` : ""}
+                  </span>
+                  <span className="font-semibold">
+                    Now {fmt(goal.current)}
+                    {goal.unit ? ` ${goal.unit}` : ""}
+                  </span>
+                  <span className="text-faint">
+                    Target {fmt(goal.target)}
+                    {goal.unit ? ` ${goal.unit}` : ""}
+                  </span>
+                </div>
+              )}
+
+              {data.actions.length > 0 && (
+                <ul className="mt-4 space-y-3 border-t border-line pt-3">
+                  {data.actions.map((a) => {
+                    const pct = actionPct(a);
+                    return (
+                      <li key={a.id}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="min-w-0 flex-1 truncate text-xs">
+                            {a.title}
+                          </p>
+                          <p className="shrink-0 text-[11px] text-faint">
+                            {fmt(a.current)} / {fmt(a.target)}
+                            {a.unit ? ` ${a.unit}` : ""} · {Math.round(pct)}%
+                          </p>
+                        </div>
+                        <Bar pct={pct} className="mt-1.5 !h-1" />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {ready && !goal && data.actions.length === 0 && (
+                <p className="mt-3 text-xs text-faint">
+                  Tap to set a goal and add actions.
+                </p>
+              )}
             </Link>
           );
         })}

@@ -3,87 +3,153 @@
 import { useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
-import { SECTIONS, isSectionId, useGoals, type Goal } from "@/lib/store";
 import {
-  CheckIcon,
+  SECTIONS,
+  isSectionId,
+  useTracker,
+  goalPct,
+  actionPct,
+  fmt,
+  type Goal,
+  type Action,
+} from "@/lib/store";
+import { Donut, Bar } from "@/components/charts";
+import {
   ChevronLeftIcon,
   GridIcon,
   PlusIcon,
-  SearchIcon,
   XIcon,
 } from "@/components/icons";
 
-function GoalRow({
-  goal,
-  onToggle,
-  onDelete,
+function Sheet({
+  title,
+  onClose,
+  children,
 }: {
-  goal: Goal;
-  onToggle: () => void;
-  onDelete: () => void;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
   return (
-    <li className="flex items-center gap-3 border-b border-line py-3 last:border-b-0">
-      <button
-        onClick={onToggle}
-        aria-label={goal.done ? "Mark as not done" : "Mark as done"}
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-          goal.done ? "border-black bg-black text-white" : "border-faint"
-        }`}
+    <div
+      className="fixed inset-0 z-30 flex items-end justify-center bg-black/20"
+      onClick={onClose}
+    >
+      <div
+        className="sheet-enter w-full max-w-md rounded-t-2xl border border-line bg-white p-5 pb-8"
+        onClick={(e) => e.stopPropagation()}
       >
-        {goal.done && <CheckIcon className="h-3.5 w-3.5" />}
-      </button>
-      <div className="min-w-0 flex-1">
-        <p
-          className={`truncate text-sm ${
-            goal.done ? "text-faint line-through" : ""
-          }`}
-        >
-          {goal.title}
-        </p>
-        {goal.note && (
-          <p className="truncate text-xs text-faint">{goal.note}</p>
-        )}
+        <h2 className="text-base font-semibold">{title}</h2>
+        {children}
       </div>
-      <button
-        onClick={onDelete}
-        aria-label="Delete goal"
-        className="p-1 text-faint active:text-black"
-      >
-        <XIcon className="h-4 w-4" />
-      </button>
-    </li>
+    </div>
   );
 }
 
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  numeric,
+  autoFocus,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  numeric?: boolean;
+  autoFocus?: boolean;
+}) {
+  return (
+    <label className="mt-3 block first:mt-4">
+      <span className="text-xs text-faint">{label}</span>
+      <input
+        autoFocus={autoFocus}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        type={numeric ? "number" : "text"}
+        inputMode={numeric ? "decimal" : undefined}
+        className="mt-1 w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none placeholder:text-faint focus:border-black"
+      />
+    </label>
+  );
+}
+
+const num = (v: string) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
 export default function SectionPage() {
   const params = useParams<{ section: string }>();
-  const { goals, ready, addGoal, toggleGoal, deleteGoal } = useGoals();
-  const [query, setQuery] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
+  const { state, ready, setGoal, addAction, updateAction, deleteAction } =
+    useTracker();
+
+  const [goalSheet, setGoalSheet] = useState(false);
+  const [actionSheet, setActionSheet] = useState<"new" | Action | null>(null);
+  const [f, setF] = useState({
+    title: "",
+    unit: "",
+    start: "",
+    current: "",
+    target: "",
+  });
 
   if (!isSectionId(params.section)) notFound();
   const sectionId = params.section;
   const section = SECTIONS.find((s) => s.id === sectionId)!;
+  const data = state[sectionId];
+  const goal = data.goal;
 
-  const sectionGoals = goals
-    .filter((g) => g.section === sectionId)
-    .filter(
-      (g) =>
-        query.trim() === "" ||
-        g.title.toLowerCase().includes(query.trim().toLowerCase())
-    );
-  const active = sectionGoals.filter((g) => !g.done);
-  const completed = sectionGoals.filter((g) => g.done);
+  const openGoalSheet = () => {
+    setF({
+      title: goal?.title ?? "",
+      unit: goal?.unit ?? "",
+      start: goal !== null ? String(goal.start) : "",
+      current: goal !== null ? String(goal.current) : "",
+      target: goal !== null ? String(goal.target) : "",
+    });
+    setGoalSheet(true);
+  };
 
-  const submit = () => {
-    if (!title.trim()) return;
-    addGoal(sectionId, title, note);
-    setTitle("");
-    setNote("");
-    setAdding(false);
+  const saveGoal = () => {
+    if (!f.title.trim()) return;
+    const start = num(f.start);
+    const next: Goal = {
+      title: f.title.trim(),
+      unit: f.unit.trim() || undefined,
+      start,
+      current: f.current === "" ? start : num(f.current),
+      target: num(f.target),
+    };
+    setGoal(sectionId, next);
+    setGoalSheet(false);
+  };
+
+  const openActionSheet = (a: "new" | Action) => {
+    setF({
+      title: a === "new" ? "" : a.title,
+      unit: a === "new" ? "" : a.unit ?? "",
+      start: "",
+      current: a === "new" ? "" : String(a.current),
+      target: a === "new" ? "" : String(a.target),
+    });
+    setActionSheet(a);
+  };
+
+  const saveAction = () => {
+    if (!f.title.trim() || actionSheet === null) return;
+    const payload = {
+      title: f.title.trim(),
+      unit: f.unit.trim() || undefined,
+      current: num(f.current),
+      target: num(f.target),
+    };
+    if (actionSheet === "new") addAction(sectionId, payload);
+    else updateAction(sectionId, actionSheet.id, payload);
+    setActionSheet(null);
   };
 
   return (
@@ -96,110 +162,232 @@ export default function SectionPage() {
         <GridIcon className="h-6 w-6" />
       </header>
 
-      <div className="px-5 pt-3">
-        <div className="flex items-center gap-2 rounded-xl border border-line px-3 py-2.5">
-          <SearchIcon className="h-4 w-4 text-faint" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search goals"
-            className="w-full bg-transparent text-sm outline-none placeholder:text-faint"
-          />
-        </div>
-      </div>
+      {/* Overarching goal */}
+      <section className="px-5 pt-3">
+        {goal ? (
+          <button
+            onClick={openGoalSheet}
+            className="w-full rounded-2xl border border-line p-5 text-left active:bg-neutral-50"
+          >
+            <div className="flex items-center gap-4">
+              <Donut pct={goalPct(goal)} size={84} stroke={8} />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase tracking-wide text-faint">
+                  Goal
+                </p>
+                <p className="mt-0.5 font-medium leading-snug">{goal.title}</p>
+                <p className="mt-1 text-xs text-faint">
+                  {fmt(goal.start)} → {fmt(goal.target)}
+                  {goal.unit ? ` ${goal.unit}` : ""}
+                </p>
+                <p className="text-sm font-semibold">
+                  Now {fmt(goal.current)}
+                  {goal.unit ? ` ${goal.unit}` : ""}
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-center text-xs text-faint">
+              Tap to update progress
+            </p>
+          </button>
+        ) : (
+          <button
+            onClick={openGoalSheet}
+            className="w-full rounded-2xl border border-dashed border-faint p-6 text-center active:bg-neutral-50"
+          >
+            <p className="font-medium">Set your {section.label} goal</p>
+            <p className="mt-1 text-xs text-faint">
+              Starting metric → target metric
+            </p>
+          </button>
+        )}
+      </section>
 
-      <section className="px-5 pt-5">
+      {/* Actions */}
+      <section className="px-5 pt-6">
         <h2 className="border-b border-line pb-2 text-sm font-semibold">
-          Goals
+          Actions
         </h2>
-        {!ready ? null : active.length === 0 && completed.length === 0 ? (
+        {!ready ? null : data.actions.length === 0 ? (
           <p className="py-8 text-center text-sm text-faint">
-            {query
-              ? "No goals match your search."
-              : "No goals yet. Tap + to add your first one."}
+            No actions yet. Tap + to add one that moves you toward your goal.
           </p>
         ) : (
           <ul>
-            {active.map((g) => (
-              <GoalRow
-                key={g.id}
-                goal={g}
-                onToggle={() => toggleGoal(g.id)}
-                onDelete={() => deleteGoal(g.id)}
-              />
-            ))}
+            {data.actions.map((a) => {
+              const pct = actionPct(a);
+              return (
+                <li
+                  key={a.id}
+                  className="flex items-center gap-3 border-b border-line py-3.5 last:border-b-0"
+                >
+                  <button
+                    onClick={() => openActionSheet(a)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="min-w-0 flex-1 truncate text-sm">
+                        {a.title}
+                      </p>
+                      <p className="shrink-0 text-xs text-faint">
+                        {fmt(a.current)} / {fmt(a.target)}
+                        {a.unit ? ` ${a.unit}` : ""}
+                      </p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Bar pct={pct} />
+                      <span className="w-9 shrink-0 text-right text-xs font-medium">
+                        {Math.round(pct)}%
+                      </span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => deleteAction(sectionId, a.id)}
+                    aria-label="Delete action"
+                    className="p-1 text-faint active:text-black"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
-      {completed.length > 0 && (
-        <section className="px-5 pt-5">
-          <h2 className="border-b border-line pb-2 text-sm font-semibold text-faint">
-            Completed
-          </h2>
-          <ul>
-            {completed.map((g) => (
-              <GoalRow
-                key={g.id}
-                goal={g}
-                onToggle={() => toggleGoal(g.id)}
-                onDelete={() => deleteGoal(g.id)}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
-
       <button
-        onClick={() => setAdding(true)}
-        aria-label="Add goal"
+        onClick={() => openActionSheet("new")}
+        aria-label="Add action"
         className="fixed bottom-24 left-1/2 z-20 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full border border-line bg-white shadow-sm active:bg-neutral-50"
       >
         <PlusIcon className="h-6 w-6" />
       </button>
 
-      {adding && (
-        <div
-          className="fixed inset-0 z-30 flex items-end justify-center bg-black/20"
-          onClick={() => setAdding(false)}
+      {goalSheet && (
+        <Sheet
+          title={goal ? "Update goal" : `Set ${section.label} goal`}
+          onClose={() => setGoalSheet(false)}
         >
-          <div
-            className="w-full max-w-md rounded-t-2xl border border-line bg-white p-5 pb-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-base font-semibold">New {section.label} goal</h2>
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder="Goal title"
-              className="mt-4 w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none placeholder:text-faint focus:border-black"
-            />
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder="Note (optional)"
-              className="mt-3 w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none placeholder:text-faint focus:border-black"
-            />
-            <div className="mt-4 flex gap-3">
-              <button
-                onClick={() => setAdding(false)}
-                className="flex-1 rounded-full border border-line py-2.5 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submit}
-                disabled={!title.trim()}
-                className="flex-1 rounded-full bg-black py-2.5 text-sm text-white disabled:opacity-30"
-              >
-                Add goal
-              </button>
+          <Field
+            label="Goal"
+            value={f.title}
+            onChange={(v) => setF({ ...f, title: v })}
+            placeholder="e.g. Reach 80 kg"
+            autoFocus={!goal}
+          />
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Field
+                label="Starting metric"
+                value={f.start}
+                onChange={(v) => setF({ ...f, start: v })}
+                placeholder="0"
+                numeric
+              />
+            </div>
+            <div className="flex-1">
+              <Field
+                label="Target metric"
+                value={f.target}
+                onChange={(v) => setF({ ...f, target: v })}
+                placeholder="100"
+                numeric
+              />
             </div>
           </div>
-        </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Field
+                label={goal ? "Current metric" : "Current (optional)"}
+                value={f.current}
+                onChange={(v) => setF({ ...f, current: v })}
+                placeholder="= start"
+                numeric
+                autoFocus={!!goal}
+              />
+            </div>
+            <div className="flex-1">
+              <Field
+                label="Unit (optional)"
+                value={f.unit}
+                onChange={(v) => setF({ ...f, unit: v })}
+                placeholder="kg, $, hrs"
+              />
+            </div>
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button
+              onClick={() => setGoalSheet(false)}
+              className="flex-1 rounded-full border border-line py-2.5 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveGoal}
+              disabled={!f.title.trim()}
+              className="flex-1 rounded-full bg-black py-2.5 text-sm text-white disabled:opacity-30"
+            >
+              Save goal
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {actionSheet !== null && (
+        <Sheet
+          title={actionSheet === "new" ? "New action" : "Update action"}
+          onClose={() => setActionSheet(null)}
+        >
+          <Field
+            label="Action"
+            value={f.title}
+            onChange={(v) => setF({ ...f, title: v })}
+            placeholder="e.g. Gym sessions per week"
+            autoFocus={actionSheet === "new"}
+          />
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Field
+                label="Current metric"
+                value={f.current}
+                onChange={(v) => setF({ ...f, current: v })}
+                placeholder="0"
+                numeric
+                autoFocus={actionSheet !== "new"}
+              />
+            </div>
+            <div className="flex-1">
+              <Field
+                label="Target metric"
+                value={f.target}
+                onChange={(v) => setF({ ...f, target: v })}
+                placeholder="10"
+                numeric
+              />
+            </div>
+          </div>
+          <Field
+            label="Unit (optional)"
+            value={f.unit}
+            onChange={(v) => setF({ ...f, unit: v })}
+            placeholder="sessions, $, km"
+          />
+          <div className="mt-5 flex gap-3">
+            <button
+              onClick={() => setActionSheet(null)}
+              className="flex-1 rounded-full border border-line py-2.5 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveAction}
+              disabled={!f.title.trim()}
+              className="flex-1 rounded-full bg-black py-2.5 text-sm text-white disabled:opacity-30"
+            >
+              {actionSheet === "new" ? "Add action" : "Save"}
+            </button>
+          </div>
+        </Sheet>
       )}
     </main>
   );
