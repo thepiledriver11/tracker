@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -20,8 +19,8 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
-        router.replace("/");
-        router.refresh();
+        // Hard navigation so the splash screen covers the post-login load.
+        window.location.href = "/";
         return;
       }
       setError(true);
@@ -33,28 +32,7 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-[80vh] flex-col items-center justify-center px-8">
-      <svg viewBox="0 0 512 512" className="h-16 w-16">
-        <rect width="512" height="512" rx="115" fill="#000" />
-        <circle
-          cx="256"
-          cy="256"
-          r="140"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="36"
-          strokeLinecap="round"
-          strokeDasharray="660 220"
-          transform="rotate(-90 256 256)"
-        />
-        <path
-          d="M198 262l42 42 78-88"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="36"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <Logo size={64} spinning={busy} />
       <h1 className="mt-5 text-xl font-semibold">Goal Tracker</h1>
       <p className="mt-1 text-sm text-faint">Enter your password to continue</p>
 

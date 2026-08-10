@@ -61,6 +61,19 @@ export function FinanceIcon({ className }: IconProps) {
   );
 }
 
+export function TodoIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m3.5 6 1.5 1.5L8 4.5" />
+      <path d="M11 6.5h9.5" />
+      <path d="m3.5 13 1.5 1.5L8 11.5" />
+      <path d="M11 13.5h9.5" />
+      <rect x="3.5" y="18" width="4" height="4" rx="1" />
+      <path d="M11 20.5h9.5" />
+    </svg>
+  );
+}
+
 export function ChevronLeftIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
@@ -129,5 +142,7 @@ export function SectionIcon({
       return <NutritionIcon className={className} />;
     case "finance":
       return <FinanceIcon className={className} />;
+    case "todo":
+      return <TodoIcon className={className} />;
   }
 }

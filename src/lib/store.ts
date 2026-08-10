@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SectionId = "career" | "fitness" | "nutrition" | "finance";
+export type SectionId =
+  | "career"
+  | "fitness"
+  | "nutrition"
+  | "finance"
+  | "todo";
 
 export type Goal = {
   title: string;
@@ -32,6 +37,7 @@ export const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "fitness", label: "Fitness" },
   { id: "nutrition", label: "Nutrition" },
   { id: "finance", label: "Finance" },
+  { id: "todo", label: "To do" },
 ];
 
 export function isSectionId(value: string): value is SectionId {
@@ -45,6 +51,7 @@ const EMPTY: TrackerState = {
   fitness: { goal: null, actions: [] },
   nutrition: { goal: null, actions: [] },
   finance: { goal: null, actions: [] },
+  todo: { goal: null, actions: [] },
 };
 
 function normalize(parsed: Partial<TrackerState> | null): TrackerState {

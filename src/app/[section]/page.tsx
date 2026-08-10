@@ -20,7 +20,6 @@ import {
   PlusIcon,
   XIcon,
 } from "@/components/icons";
-import HeaderMenu from "@/components/HeaderMenu";
 
 function Sheet({
   title,
@@ -201,7 +200,7 @@ export default function SectionPage() {
           <ChevronLeftIcon className="h-6 w-6" />
         </Link>
         <h1 className="text-base font-semibold">{section.label}</h1>
-        <HeaderMenu />
+        <span className="w-6" aria-hidden />
       </header>
 
       {/* Overarching goal */}

@@ -10,16 +10,14 @@ import {
 } from "@/lib/store";
 import { Donut, Bar } from "@/components/charts";
 import { SectionIcon } from "@/components/icons";
-import HeaderMenu from "@/components/HeaderMenu";
 
 export default function DashboardPage() {
   const { state, ready } = useTracker();
 
   return (
     <main>
-      <header className="flex items-center justify-between px-5 pb-2 pt-6">
+      <header className="px-5 pb-2 pt-6">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <HeaderMenu />
       </header>
 
       <section className="space-y-3 px-5 pt-3">
