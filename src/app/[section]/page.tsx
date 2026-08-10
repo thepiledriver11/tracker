@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
+import confetti from "canvas-confetti";
 import {
   SECTIONS,
   isSectionId,
@@ -82,6 +83,41 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/** Confetti burst when something is achieved; a bigger show for goals. */
+function celebrate(big: boolean) {
+  const base = { disableForReducedMotion: true };
+  confetti({
+    ...base,
+    particleCount: big ? 160 : 80,
+    spread: big ? 100 : 70,
+    origin: { y: 0.7 },
+  });
+  if (big) {
+    setTimeout(
+      () =>
+        confetti({
+          ...base,
+          particleCount: 100,
+          spread: 120,
+          angle: 60,
+          origin: { x: 0, y: 0.8 },
+        }),
+      200
+    );
+    setTimeout(
+      () =>
+        confetti({
+          ...base,
+          particleCount: 100,
+          spread: 120,
+          angle: 120,
+          origin: { x: 1, y: 0.8 },
+        }),
+      350
+    );
+  }
+}
+
 export default function SectionPage() {
   const params = useParams<{ section: string }>();
   const { state, ready, setGoal, addAction, updateAction, deleteAction } =
@@ -124,8 +160,10 @@ export default function SectionPage() {
       current: f.current === "" ? start : num(f.current),
       target: num(f.target),
     };
+    const before = goal ? goalPct(goal) : 0;
     setGoal(sectionId, next);
     setGoalSheet(false);
+    if (goalPct(next) >= 100 && before < 100) celebrate(true);
   };
 
   const openActionSheet = (a: "new" | Action) => {
@@ -147,9 +185,13 @@ export default function SectionPage() {
       current: num(f.current),
       target: num(f.target),
     };
+    const before =
+      actionSheet === "new" ? 0 : actionPct(actionSheet);
     if (actionSheet === "new") addAction(sectionId, payload);
     else updateAction(sectionId, actionSheet.id, payload);
     setActionSheet(null);
+    const after = actionPct({ id: "", ...payload });
+    if (after >= 100 && before < 100) celebrate(false);
   };
 
   return (

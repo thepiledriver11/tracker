@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type SectionId = "career" | "fitness" | "nutrition" | "finance";
 
@@ -47,26 +47,64 @@ const EMPTY: TrackerState = {
   finance: { goal: null, actions: [] },
 };
 
-function load(): TrackerState {
+function normalize(parsed: Partial<TrackerState> | null): TrackerState {
+  const state = structuredClone(EMPTY);
+  if (!parsed) return state;
+  for (const s of SECTIONS) {
+    if (parsed[s.id]) {
+      state[s.id] = {
+        goal: parsed[s.id]?.goal ?? null,
+        actions: parsed[s.id]?.actions ?? [],
+      };
+    }
+  }
+  return state;
+}
+
+function loadLocal(): TrackerState {
   if (typeof window === "undefined") return EMPTY;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return structuredClone(EMPTY);
-    const parsed = JSON.parse(raw) as Partial<TrackerState>;
-    const state = structuredClone(EMPTY);
-    for (const s of SECTIONS) {
-      if (parsed[s.id]) {
-        state[s.id] = {
-          goal: parsed[s.id]?.goal ?? null,
-          actions: parsed[s.id]?.actions ?? [],
-        };
-      }
-    }
-    return state;
+    return normalize(raw ? (JSON.parse(raw) as Partial<TrackerState>) : null);
   } catch {
     return structuredClone(EMPTY);
   }
 }
+
+function saveLocal(state: TrackerState) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+// --- Server sync (Railway Postgres via /api/state) -------------------------
+// localStorage is the fast cache; the database is the source of truth. Every
+// mutation writes both. Without DATABASE_URL the API is a no-op and the app
+// keeps working on localStorage alone.
+
+async function fetchServerState(): Promise<TrackerState | null> {
+  try {
+    const res = await fetch("/api/state", { cache: "no-store" });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { state: Partial<TrackerState> | null };
+    return json.state ? normalize(json.state) : null;
+  } catch {
+    return null;
+  }
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function saveServerState(state: TrackerState) {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch("/api/state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    }).catch(() => {});
+  }, 400);
+}
+
+// --- Progress --------------------------------------------------------------
 
 /** Progress toward the goal from its starting metric, 0–100. Works in both
  * directions (e.g. weight 90 → 80 or savings 10k → 50k). */
@@ -89,23 +127,39 @@ export function fmt(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+// --- Hook ------------------------------------------------------------------
+
 export function useTracker() {
   const [state, setState] = useState<TrackerState>(EMPTY);
   const [ready, setReady] = useState(false);
+  const dirty = useRef(false);
 
   useEffect(() => {
-    setState(load());
+    setState(loadLocal());
     setReady(true);
+    let cancelled = false;
+    fetchServerState().then((server) => {
+      // Don't clobber edits made while the fetch was in flight.
+      if (server && !cancelled && !dirty.current) {
+        setState(server);
+        saveLocal(server);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const persist = useCallback((next: TrackerState) => {
+    dirty.current = true;
     setState(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    saveLocal(next);
+    saveServerState(next);
   }, []);
 
   const mutate = useCallback(
     (section: SectionId, fn: (data: SectionData) => SectionData) => {
-      const current = load();
+      const current = loadLocal();
       persist({ ...current, [section]: fn(current[section]) });
     },
     [persist]

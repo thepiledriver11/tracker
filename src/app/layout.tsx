@@ -5,12 +5,18 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Goal Tracker",
   description: "Track goals across Career, Fitness, Nutrition and Finance",
+  appleWebApp: {
+    capable: true,
+    title: "Goals",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
