@@ -9,7 +9,8 @@ import {
   fmt,
 } from "@/lib/store";
 import { Donut, Bar } from "@/components/charts";
-import { GridIcon, SectionIcon } from "@/components/icons";
+import { SectionIcon } from "@/components/icons";
+import HeaderMenu from "@/components/HeaderMenu";
 
 export default function DashboardPage() {
   const { state, ready } = useTracker();
@@ -18,7 +19,7 @@ export default function DashboardPage() {
     <main>
       <header className="flex items-center justify-between px-5 pb-2 pt-6">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <GridIcon className="h-6 w-6 text-black" />
+        <HeaderMenu />
       </header>
 
       <section className="space-y-3 px-5 pt-3">

@@ -17,10 +17,10 @@ import {
 import { Donut, Bar } from "@/components/charts";
 import {
   ChevronLeftIcon,
-  GridIcon,
   PlusIcon,
   XIcon,
 } from "@/components/icons";
+import HeaderMenu from "@/components/HeaderMenu";
 
 function Sheet({
   title,
@@ -201,7 +201,7 @@ export default function SectionPage() {
           <ChevronLeftIcon className="h-6 w-6" />
         </Link>
         <h1 className="text-base font-semibold">{section.label}</h1>
-        <GridIcon className="h-6 w-6" />
+        <HeaderMenu />
       </header>
 
       {/* Overarching goal */}

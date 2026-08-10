@@ -10,7 +10,11 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(AUTH_COOKIE)?.value;
   const valid = token === (await authToken(password));
 
-  if (pathname === "/login" || pathname === "/api/login") {
+  if (
+    pathname === "/login" ||
+    pathname === "/api/login" ||
+    pathname === "/api/logout"
+  ) {
     if (valid && pathname === "/login") {
       const url = req.nextUrl.clone();
       url.pathname = "/";
