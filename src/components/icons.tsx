@@ -1,5 +1,3 @@
-import type { SectionId } from "@/lib/store";
-
 type IconProps = { className?: string };
 
 const base = {
@@ -82,26 +80,6 @@ export function ChevronLeftIcon({ className }: IconProps) {
   );
 }
 
-export function SearchIcon({ className }: IconProps) {
-  return (
-    <svg {...base} className={className}>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.8-3.8" />
-    </svg>
-  );
-}
-
-export function GridIcon({ className }: IconProps) {
-  return (
-    <svg {...base} className={className}>
-      <circle cx="8" cy="8" r="2.2" />
-      <circle cx="16" cy="8" r="2.2" />
-      <circle cx="8" cy="16" r="2.2" />
-      <circle cx="16" cy="16" r="2.2" />
-    </svg>
-  );
-}
-
 export function PlusIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
@@ -118,22 +96,36 @@ export function XIcon({ className }: IconProps) {
   );
 }
 
-export function CheckIcon({ className }: IconProps) {
+export function PencilIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
-      <path d="m5 12.5 4.5 4.5L19 7.5" />
+      <path d="M4 20h4l10-10-4-4L4 16v4Z" />
+      <path d="m14.5 5.5 4 4" />
     </svg>
   );
 }
 
-export function SectionIcon({
-  section,
+export function TrashIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 7h16" />
+      <path d="M9 7V4.5h6V7" />
+      <path d="M6 7l1 13h10l1-13" />
+    </svg>
+  );
+}
+
+/** Built-in glyph when the category has one, otherwise a letter monogram. */
+export function CategoryIcon({
+  icon,
+  label,
   className,
 }: {
-  section: SectionId;
+  icon?: string;
+  label: string;
   className?: string;
 }) {
-  switch (section) {
+  switch (icon) {
     case "career":
       return <CareerIcon className={className} />;
     case "fitness":
@@ -144,5 +136,29 @@ export function SectionIcon({
       return <FinanceIcon className={className} />;
     case "todo":
       return <TodoIcon className={className} />;
+    default:
+      return (
+        <svg viewBox="0 0 24 24" className={className}>
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <text
+            x="12"
+            y="12"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="10"
+            fontWeight="600"
+            fill="currentColor"
+          >
+            {(label.trim()[0] ?? "?").toUpperCase()}
+          </text>
+        </svg>
+      );
   }
 }

@@ -28,6 +28,14 @@ body {
   animation: screen-slide-up 340ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Horizontal tab strip scrolls when there are many categories */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Loading logo: the progress ring spins around the tick */
 @keyframes logo-rotate {
   to {

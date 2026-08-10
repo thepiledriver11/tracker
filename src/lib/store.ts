@@ -2,79 +2,158 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SectionId =
-  | "career"
-  | "fitness"
-  | "nutrition"
-  | "finance"
-  | "todo";
+export type Action = {
+  id: string;
+  title: string;
+  unit?: string;
+  /** Optional starting metric; progress runs start → target. Without it,
+   * progress is simply current / target. */
+  start?: number;
+  current: number;
+  target: number;
+  /** Relative importance of this action toward its goal (default 1). */
+  weight: number;
+};
 
-export type Goal = {
+export type GoalItem = {
+  id: string;
+  title: string;
+  actions: Action[];
+};
+
+export type Category = {
+  id: string;
+  label: string;
+  /** One of the built-in icon ids; custom categories use a monogram. */
+  icon?: string;
+  goals: GoalItem[];
+};
+
+export type TrackerState = { categories: Category[] };
+
+export const BUILT_IN_ICONS = [
+  "career",
+  "fitness",
+  "nutrition",
+  "finance",
+  "todo",
+] as const;
+
+const DEFAULT_LABELS: Record<string, string> = {
+  career: "Career",
+  fitness: "Fitness",
+  nutrition: "Nutrition",
+  finance: "Finance",
+  todo: "To do",
+};
+
+function defaultState(): TrackerState {
+  return {
+    categories: Object.entries(DEFAULT_LABELS).map(([id, label]) => ({
+      id,
+      label,
+      icon: id,
+      goals: [],
+    })),
+  };
+}
+
+const EMPTY: TrackerState = { categories: [] };
+const STORAGE_KEY = "goal-tracker:v3";
+const LEGACY_KEY = "goal-tracker:v2";
+
+// --- Normalization & migration ---------------------------------------------
+
+type LegacyGoal = {
   title: string;
   unit?: string;
   start: number;
   current: number;
   target: number;
 };
-
-export type Action = {
+type LegacyAction = {
   id: string;
   title: string;
   unit?: string;
   current: number;
   target: number;
 };
+type LegacySection = { goal: LegacyGoal | null; actions: LegacyAction[] };
 
-export type SectionData = {
-  goal: Goal | null;
-  actions: Action[];
-};
-
-export type TrackerState = Record<SectionId, SectionData>;
-
-export const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "career", label: "Career" },
-  { id: "fitness", label: "Fitness" },
-  { id: "nutrition", label: "Nutrition" },
-  { id: "finance", label: "Finance" },
-  { id: "todo", label: "To do" },
-];
-
-export function isSectionId(value: string): value is SectionId {
-  return SECTIONS.some((s) => s.id === value);
+function migrateLegacy(old: Record<string, LegacySection>): TrackerState {
+  return {
+    categories: Object.entries(DEFAULT_LABELS).map(([id, label]) => {
+      const section = old[id];
+      const goals: GoalItem[] = [];
+      if (section?.goal) {
+        const g = section.goal;
+        const actions: Action[] = [
+          {
+            id: crypto.randomUUID(),
+            title: "Overall progress",
+            unit: g.unit,
+            start: g.start,
+            current: g.current,
+            target: g.target,
+            weight: 1,
+          },
+          ...(section.actions ?? []).map((a) => ({ ...a, weight: 1 })),
+        ];
+        goals.push({ id: crypto.randomUUID(), title: g.title, actions });
+      } else if (section?.actions?.length) {
+        goals.push({
+          id: crypto.randomUUID(),
+          title: `${label} goal`,
+          actions: section.actions.map((a) => ({ ...a, weight: 1 })),
+        });
+      }
+      return { id, label, icon: id, goals };
+    }),
+  };
 }
 
-const STORAGE_KEY = "goal-tracker:v2";
-
-const EMPTY: TrackerState = {
-  career: { goal: null, actions: [] },
-  fitness: { goal: null, actions: [] },
-  nutrition: { goal: null, actions: [] },
-  finance: { goal: null, actions: [] },
-  todo: { goal: null, actions: [] },
-};
-
-function normalize(parsed: Partial<TrackerState> | null): TrackerState {
-  const state = structuredClone(EMPTY);
-  if (!parsed) return state;
-  for (const s of SECTIONS) {
-    if (parsed[s.id]) {
-      state[s.id] = {
-        goal: parsed[s.id]?.goal ?? null,
-        actions: parsed[s.id]?.actions ?? [],
-      };
-    }
+function normalize(parsed: unknown): TrackerState {
+  if (!parsed || typeof parsed !== "object") return defaultState();
+  const obj = parsed as Record<string, unknown>;
+  if (Array.isArray(obj.categories)) {
+    return {
+      categories: (obj.categories as Category[]).map((c) => ({
+        id: String(c.id),
+        label: String(c.label ?? "Untitled"),
+        icon: c.icon,
+        goals: (c.goals ?? []).map((g) => ({
+          id: String(g.id),
+          title: String(g.title ?? ""),
+          actions: (g.actions ?? []).map((a) => ({
+            id: String(a.id),
+            title: String(a.title ?? ""),
+            unit: a.unit,
+            start: typeof a.start === "number" ? a.start : undefined,
+            current: Number(a.current) || 0,
+            target: Number(a.target) || 0,
+            weight: Number(a.weight) > 0 ? Number(a.weight) : 1,
+          })),
+        })),
+      })),
+    };
   }
-  return state;
+  // v2 shape: { career: {goal, actions}, ... }
+  if (obj.career || obj.fitness || obj.finance) {
+    return migrateLegacy(obj as Record<string, LegacySection>);
+  }
+  return defaultState();
 }
 
 function loadLocal(): TrackerState {
   if (typeof window === "undefined") return EMPTY;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return normalize(raw ? (JSON.parse(raw) as Partial<TrackerState>) : null);
+    if (raw) return normalize(JSON.parse(raw));
+    const legacy = window.localStorage.getItem(LEGACY_KEY);
+    if (legacy) return normalize(JSON.parse(legacy));
+    return defaultState();
   } catch {
-    return structuredClone(EMPTY);
+    return defaultState();
   }
 }
 
@@ -83,15 +162,12 @@ function saveLocal(state: TrackerState) {
 }
 
 // --- Server sync (Railway Postgres via /api/state) -------------------------
-// localStorage is the fast cache; the database is the source of truth. Every
-// mutation writes both. Without DATABASE_URL the API is a no-op and the app
-// keeps working on localStorage alone.
 
 async function fetchServerState(): Promise<TrackerState | null> {
   try {
     const res = await fetch("/api/state", { cache: "no-store" });
     if (!res.ok) return null;
-    const json = (await res.json()) as { state: Partial<TrackerState> | null };
+    const json = (await res.json()) as { state: unknown };
     return json.state ? normalize(json.state) : null;
   } catch {
     return null;
@@ -111,30 +187,50 @@ function saveServerState(state: TrackerState) {
   }, 400);
 }
 
-// --- Progress --------------------------------------------------------------
+const UPDATE_EVENT = "tracker:update";
 
-/** Progress toward the goal from its starting metric, 0–100. Works in both
- * directions (e.g. weight 90 → 80 or savings 10k → 50k). */
-export function goalPct(goal: Goal): number {
-  const span = goal.target - goal.start;
-  if (span === 0) return 100;
-  return clampPct(((goal.current - goal.start) / span) * 100);
-}
-
-export function actionPct(action: Action): number {
-  if (action.target === 0) return action.current === 0 ? 100 : 0;
-  return clampPct((action.current / action.target) * 100);
-}
+// --- Progress ---------------------------------------------------------------
 
 function clampPct(n: number): number {
   return Math.max(0, Math.min(100, n));
+}
+
+export function actionPct(a: Action): number {
+  const start = a.start ?? 0;
+  const span = a.target - start;
+  if (span === 0) return a.current === a.target ? 100 : 0;
+  return clampPct(((a.current - start) / span) * 100);
+}
+
+/** Weighted sum of products: goal % = Σ(weight × action %) ÷ Σ(weight).
+ * Weights are normalized, so they don't have to add up to 100. */
+export function goalPct(g: GoalItem): number {
+  const totalWeight = g.actions.reduce((s, a) => s + (a.weight || 1), 0);
+  if (totalWeight === 0) return 0;
+  const sum = g.actions.reduce(
+    (s, a) => s + (a.weight || 1) * actionPct(a),
+    0
+  );
+  return sum / totalWeight;
+}
+
+/** Share of the goal this action carries, as a percentage. */
+export function actionShare(g: GoalItem, a: Action): number {
+  const totalWeight = g.actions.reduce((s, x) => s + (x.weight || 1), 0);
+  if (totalWeight === 0) return 0;
+  return ((a.weight || 1) / totalWeight) * 100;
+}
+
+export function categoryPct(c: Category): number {
+  if (c.goals.length === 0) return 0;
+  return c.goals.reduce((s, g) => s + goalPct(g), 0) / c.goals.length;
 }
 
 export function fmt(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-// --- Hook ------------------------------------------------------------------
+// --- Hook --------------------------------------------------------------------
 
 export function useTracker() {
   const [state, setState] = useState<TrackerState>(EMPTY);
@@ -146,14 +242,20 @@ export function useTracker() {
     setReady(true);
     let cancelled = false;
     fetchServerState().then((server) => {
-      // Don't clobber edits made while the fetch was in flight.
       if (server && !cancelled && !dirty.current) {
         setState(server);
         saveLocal(server);
+        window.dispatchEvent(new Event(UPDATE_EVENT));
       }
     });
+    // Keep every mounted instance of the hook (pages, tab bar) in sync.
+    const refresh = () => setState(loadLocal());
+    window.addEventListener(UPDATE_EVENT, refresh);
+    window.addEventListener("storage", refresh);
     return () => {
       cancelled = true;
+      window.removeEventListener(UPDATE_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
     };
   }, []);
 
@@ -162,65 +264,159 @@ export function useTracker() {
     setState(next);
     saveLocal(next);
     saveServerState(next);
+    window.dispatchEvent(new Event(UPDATE_EVENT));
   }, []);
 
   const mutate = useCallback(
-    (section: SectionId, fn: (data: SectionData) => SectionData) => {
-      const current = loadLocal();
-      persist({ ...current, [section]: fn(current[section]) });
+    (fn: (s: TrackerState) => TrackerState) => {
+      persist(fn(loadLocal()));
     },
     [persist]
   );
 
-  const setGoal = useCallback(
-    (section: SectionId, goal: Goal) => {
-      mutate(section, (d) => ({ ...d, goal }));
-    },
-    [mutate]
-  );
-
-  const clearGoal = useCallback(
-    (section: SectionId) => {
-      mutate(section, (d) => ({ ...d, goal: null }));
-    },
-    [mutate]
-  );
-
-  const addAction = useCallback(
-    (section: SectionId, action: Omit<Action, "id">) => {
-      mutate(section, (d) => ({
-        ...d,
-        actions: [...d.actions, { ...action, id: crypto.randomUUID() }],
+  const mutateCategory = useCallback(
+    (categoryId: string, fn: (c: Category) => Category) => {
+      mutate((s) => ({
+        categories: s.categories.map((c) =>
+          c.id === categoryId ? fn(c) : c
+        ),
       }));
     },
     [mutate]
+  );
+
+  // Categories
+  const addCategory = useCallback(
+    (label: string) => {
+      const id = crypto.randomUUID();
+      mutate((s) => ({
+        categories: [...s.categories, { id, label: label.trim(), goals: [] }],
+      }));
+      return id;
+    },
+    [mutate]
+  );
+
+  const renameCategory = useCallback(
+    (categoryId: string, label: string) => {
+      mutateCategory(categoryId, (c) => ({ ...c, label: label.trim() }));
+    },
+    [mutateCategory]
+  );
+
+  const deleteCategory = useCallback(
+    (categoryId: string) => {
+      mutate((s) => ({
+        categories: s.categories.filter((c) => c.id !== categoryId),
+      }));
+    },
+    [mutate]
+  );
+
+  // Goals
+  const addGoal = useCallback(
+    (categoryId: string, title: string) => {
+      mutateCategory(categoryId, (c) => ({
+        ...c,
+        goals: [
+          ...c.goals,
+          { id: crypto.randomUUID(), title: title.trim(), actions: [] },
+        ],
+      }));
+    },
+    [mutateCategory]
+  );
+
+  const renameGoal = useCallback(
+    (categoryId: string, goalId: string, title: string) => {
+      mutateCategory(categoryId, (c) => ({
+        ...c,
+        goals: c.goals.map((g) =>
+          g.id === goalId ? { ...g, title: title.trim() } : g
+        ),
+      }));
+    },
+    [mutateCategory]
+  );
+
+  const deleteGoal = useCallback(
+    (categoryId: string, goalId: string) => {
+      mutateCategory(categoryId, (c) => ({
+        ...c,
+        goals: c.goals.filter((g) => g.id !== goalId),
+      }));
+    },
+    [mutateCategory]
+  );
+
+  // Actions
+  const addAction = useCallback(
+    (categoryId: string, goalId: string, action: Omit<Action, "id">) => {
+      mutateCategory(categoryId, (c) => ({
+        ...c,
+        goals: c.goals.map((g) =>
+          g.id === goalId
+            ? {
+                ...g,
+                actions: [
+                  ...g.actions,
+                  { ...action, id: crypto.randomUUID() },
+                ],
+              }
+            : g
+        ),
+      }));
+    },
+    [mutateCategory]
   );
 
   const updateAction = useCallback(
-    (section: SectionId, id: string, patch: Partial<Omit<Action, "id">>) => {
-      mutate(section, (d) => ({
-        ...d,
-        actions: d.actions.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+    (
+      categoryId: string,
+      goalId: string,
+      actionId: string,
+      patch: Partial<Omit<Action, "id">>
+    ) => {
+      mutateCategory(categoryId, (c) => ({
+        ...c,
+        goals: c.goals.map((g) =>
+          g.id === goalId
+            ? {
+                ...g,
+                actions: g.actions.map((a) =>
+                  a.id === actionId ? { ...a, ...patch } : a
+                ),
+              }
+            : g
+        ),
       }));
     },
-    [mutate]
+    [mutateCategory]
   );
 
   const deleteAction = useCallback(
-    (section: SectionId, id: string) => {
-      mutate(section, (d) => ({
-        ...d,
-        actions: d.actions.filter((a) => a.id !== id),
+    (categoryId: string, goalId: string, actionId: string) => {
+      mutateCategory(categoryId, (c) => ({
+        ...c,
+        goals: c.goals.map((g) =>
+          g.id === goalId
+            ? { ...g, actions: g.actions.filter((a) => a.id !== actionId) }
+            : g
+        ),
       }));
     },
-    [mutate]
+    [mutateCategory]
   );
 
   return {
     state,
     ready,
-    setGoal,
-    clearGoal,
+    addCategory,
+    renameCategory,
+    deleteCategory,
+    addGoal,
+    renameGoal,
+    deleteGoal,
     addAction,
     updateAction,
     deleteAction,
